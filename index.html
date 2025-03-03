@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sing one</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            overflow: hidden;
+        }
+
+        #playlist-container {
+            width: 100%;
+            background-color: #eee;
+            padding: 10px;
+        }
+
+        #playlist {
+            width: 90%;
+            max-width: 600px;
+            padding: 5px;
+        }
+
+        #audio-container {
+            width: 100%;
+            padding: 10px;
+        }
+
+        #audio {
+            width: 90%;
+            max-width: 600px;
+        }
+
+        #karaoke {
+            text-align: center;
+            width: 90%;
+            max-width: 600px;
+            overflow-y: auto;
+            flex-grow: 1;
+            margin-top: 10px;
+            padding: 10px;
+        }
+
+        #lyrics {
+            font-size: 20px;
+            line-height: 1.5;
+            transition: transform 0.5s ease-in-out;
+        }
+      
+        p {
+            word-wrap: break-word; /* Wraps text to a new line */
+            white-space: normal; /* Allows line breaks */
+        }
+
+        .highlight {
+            background-color: yellow;
+            padding: 5px;
+            border-radius: 5px;
+            animation: highlightAnimation 0.5s ease-in-out forwards;
+        }
+
+        /* Text Enlargement Animation */
+         @keyframes highlightAnimation {
+            from {
+               font-size: 20px;
+            }
+            to {
+               font-size: 26px; /* Increased size */
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+
+<link rel="manifest" href="manifest.json">
+<script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.js')
+            .then(() => console.log('Service Worker Registered'));
+    }
+</script>
+</head>
+
+<body>
+    <div id="playlist-container">
+        <select id="playlist"></select>
+    </div>
+
+    <div id="audio-container">
+        <audio id="audio" controls></audio>
+    </div>
+
+    <div id="karaoke">
+        <div id="lyrics"></div>
+    </div>
+
+    <script>
+        const playlistSelect = document.getElementById('playlist');
+        const audio = document.getElementById('audio');
+        const lyricsDiv = document.getElementById('lyrics');
+
+        let lyrics = [];
+        let currentLine = 0;
+
+        function loadPlaylist() {
+            fetch('playlist.txt')
+                .then(response => response.text())
+                .then(text => {
+                    const songs = text.split('\n');
+                    songs.forEach(song => {
+                        const parts = song.split('|');
+                        if (parts.length === 2) {
+                            const option = document.createElement('option');
+                            option.value = parts[1].trim();
+                            option.text = parts[0].trim();
+                            playlistSelect.add(option);
+                        }
+                    });
+                    loadSong(playlistSelect.value);
+                });
+        }
+
+        function loadSong(songFile) {
+            audio.src = songFile;
+            loadLyrics(songFile.replace('.mp3', '.txt'));
+        }
+
+        function loadLyrics(lyricsFile) {
+            fetch(lyricsFile)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`File upload error: ${lyricsFile}`);
+                    }
+                    return response.text();
+                })
+                .then(text => {
+                    const lyricsLines = text.split('\n').filter(line => line.trim() !== '');
+                    lyrics = lyricsLines.map(line => {
+                        const parts = line.split('|');
+                        return {
+                            text: parts[0].trim(),
+                            time: parseFloat(parts[1].trim())
+                        };
+                    });
+                    currentLine = 0;
+                    displayLyrics();
+                })
+                .catch(error => {
+                    console.error(error);
+                    lyrics = [];
+                    lyricsDiv.innerHTML = '<p>Lyrics not available</p>';
+                });
+        }
+
+        function displayLyrics() {
+            lyricsDiv.innerHTML = lyrics.map((line, index) => {
+                const className = index === currentLine ? 'highlight' : '';
+                return `<p class="${className}">${line.text}</p>`;
+            }).join('');
+
+            const highlightedLine = lyricsDiv.querySelector('.highlight');
+            if (highlightedLine) {
+                // Smooth scrolling to current line
+                lyricsDiv.style.transform = `translateY(-${highlightedLine.offsetTop - lyricsDiv.parentElement.offsetTop}px)`;
+            }
+        }
+
+        audio.addEventListener('timeupdate', () => {
+            const currentTime = audio.currentTime;
+            if (currentLine < lyrics.length - 1 && currentTime >= lyrics[currentLine + 1].time) {
+                currentLine++;
+                displayLyrics();
+            }
+        });
+
+        playlistSelect.addEventListener('change', () => {
+            loadSong(playlistSelect.value);
+            currentLine = 0;
+        });
+
+        loadPlaylist();
+    </script>
+</body>
+</html>

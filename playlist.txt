@@ -1,0 +1,3 @@
+///name somg | song in order,if the code doesn't work then delete this line ///
+Perfect | song1.mp3
+Die with a smile | song2.mp3
